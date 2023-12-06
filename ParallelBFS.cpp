@@ -1,73 +1,52 @@
 #include <iostream>
 #include <vector>
 #include <queue>
-#include <thread>
-#include <mutex>
+#include <execution>
 
-std::mutex mtx;
-
-class Graph {
+class G 
+{
+private:
+    int num;
+    std::vector<std::vector<int>> nbr;
 public:
-    int vertices;
-    std::vector<std::vector<int>> adjList;
+    G(int vertices) : num(vertices), nbr(vertices) {}
 
-    Graph(int V) : vertices(V), adjList(V) {}
+    void addEdge(int v, int w) {
+        nbr[v].push_back(w);
+    }
+    void parallelBFS(int head) {
+        std::vector<bool> visited(num, false);
+        std::queue<int> q;
 
-    void addEdge(int u, int v) {
-        adjList[u].push_back(v);
+        visited[head] = true;
+        q.push(head);
+
+        while (!q.empty()) {
+            int current = q.front();
+            q.pop();
+            std::cout << current << "->";
+
+            std::for_each(std::execution::par, nbr[current].begin(), nbr[current].end(),
+                [&](int neighbor) {
+                    if (!visited[neighbor]) {
+                        visited[neighbor] = true;
+                        q.push(neighbor);
+                    }
+                });
+        }
+        std::cout<<std::endl;
     }
 };
 
-void parallelBFS(Graph& graph, int start, std::vector<bool>& visited, std::vector<int>& distances) {
-    std::queue<int> q;
-    q.push(start);
-    visited[start] = true;
-    distances[start] = 0;
-
-    while (!q.empty()) {
-        int current = q.front();
-        q.pop();
-
-        // Process the current node (e.g., print it or perform other operations)
-
-        {
-            std::lock_guard<std::mutex> lock(mtx);  // Lock to avoid race conditions
-            std::cout << "Visiting node: " << current << std::endl;
-        }
-
-        for (int neighbor : graph.adjList[current]) {
-            if (!visited[neighbor]) {
-                q.push(neighbor);
-                visited[neighbor] = true;
-                distances[neighbor] = distances[current] + 1;
-            }
-        }
-    }
-}
-
-int main() {
-    // Create a sample graph
-    Graph graph(6);
+int main() 
+{
+    G graph(6);
     graph.addEdge(0, 1);
     graph.addEdge(0, 2);
     graph.addEdge(1, 3);
     graph.addEdge(2, 4);
     graph.addEdge(3, 5);
 
-    const int numThreads = 2;  // Adjust the number of threads as needed
-
-    std::vector<std::thread> threads;
-    std::vector<bool> visited(graph.vertices, false);
-    std::vector<int> distances(graph.vertices, -1);
-
-    for (int i = 0; i < numThreads; ++i) {
-        threads.emplace_back(parallelBFS, std::ref(graph), i, std::ref(visited), std::ref(distances));
-    }
-
-    for (std::thread& t : threads) {
-        t.join();
-    }
-
+    graph.parallelBFS(0);
     return 0;
 }
-
